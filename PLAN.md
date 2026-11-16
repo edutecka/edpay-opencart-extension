@@ -1,15 +1,15 @@
-# Roadmap & Plano de Arquitetura - EDPay OpenCart Extension
+# Roadmap and Architecture Plan - EDPay OpenCart Extension
 
-## Fases de Desenvolvimento
+## Development Phases
 
-### Fase 1: Arquitetura & Configuração Admin (Concluído)
-- [x] Estrutura MVC-L do OpenCart (`admin/controller`, `admin/view`, `admin/model`, `catalog/controller`, `catalog/model`).
-- [x] Ecrã de configuração de chaves API (Sandbox e Produção) no backoffice.
+### Phase 1: Catalog Integration Scaffold (Complete)
+- [x] Add the catalog payment controller and model.
 
-### Fase 2: Checkout & Callback Controller (Em Desenvolvimento)
-- [ ] Catalog controller para geração de sessão no `/v1/checkout/sessions`.
-- [ ] Callback endpoint para IPN webhook (`index.php?route=extension/payment/edpay/callback`).
+### Phase 2: Configuration, Checkout, and Callback (In Progress)
+- [ ] Add the missing admin configuration screens and catalog view.
+- [ ] Complete hosted payment-link integration through `/v1/core/payment-links`.
+- [ ] Complete the IPN/webhook callback at `index.php?route=extension/payment/edpay/webhook`.
 
-### Fase 3: Empacotamento OCMOD
-- [ ] Gerador de ficheiro `.ocmod.zip` compatível com o instalador do OpenCart 3.x e 4.x.
-- [ ] Publicação no OpenCart Marketplace.
+### Phase 3: OCMOD Packaging
+- [ ] Build an `.ocmod.zip` package compatible with the OpenCart 3.x and 4.x installers.
+- [ ] Publish to the OpenCart Marketplace.

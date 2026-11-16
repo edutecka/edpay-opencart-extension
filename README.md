@@ -1,6 +1,6 @@
 # EDPay for OpenCart — Official Development Preview
 
-This repository is an implementation preview, not a production release. **It is not installable as a complete OpenCart extension in its current state.** The repository currently contains only the catalog payment controller and model; it does not include the admin configuration screens, catalog view and language files, or an OpenCart installer package. Compatibility with specific OpenCart versions has not been validated.
+This repository is an implementation preview, not a production release. **It is not installable as a complete OpenCart extension in its current state.** The repository contains a catalog payment controller and model, plus an English catalog language file; it does not include the admin configuration screens, catalog view, or an OpenCart installer package. Compatibility with specific OpenCart versions has not been validated.
 
 Do not use this code for live transactions. The implementation also has webhook-verification and retry limitations described below.
 
@@ -26,12 +26,15 @@ The catalog controller expects an existing OpenCart order and reads these settin
 - `payment_edpay_public_key` and `payment_edpay_private_key`
 - `payment_edpay_api_url`
 - `payment_edpay_webhook_secret`
+- Optional `payment_edpay_webhook_tolerance_seconds` (defaults to `300`)
 - `payment_edpay_order_status_id`
 - `payment_edpay_title`, `payment_edpay_sort_order`, and optionally `payment_edpay_geo_zone_id`
 
-There is no included admin screen to enter or manage these settings. If a developer supplies the missing configuration and UI, the controller posts a payment-link request to `/v1/core/payment-links`, sends `X-EDPay-Public-Key` and `X-EDPay-Private-Key`, and redirects to `data.hosted_url` or `data.checkout_url` in a successful response. The request includes the order total converted to minor currency units, the order currency (or `MZN` if absent), order metadata, and success/cancel URLs.
+There is no included admin screen to enter or manage these settings. The controller uses `POST /v1/payment-links` (`amount_minor`, `currency`) followed by `POST /v1/checkout/sessions` (`payment_link_id`), with stable order-based `Idempotency-Key` values. It builds the hosted URL from the returned session token using the documented frontend URL `https://pay.edutecka.com/pay?token=...&pk=...`.
 
-The controller currently defaults the API base URL to `https://api-pay.edutecka.com`. Set `payment_edpay_api_url` explicitly to the sandbox endpoint provided by EDPay before any test; do not rely on the default. Its idempotency key includes the current time, so separate attempts for one order receive different keys and are not reliably deduplicated.
+Partner API requests require both keys together: pair `pk_test_...` with `sk_test_...`, or `pk_live_...` with `sk_live_...`. The controller rejects missing, malformed, or cross-environment pairs before sending a request.
+
+The controller defaults the API base URL to `https://api-pay.edutecka.com`; configure `payment_edpay_api_url` to the correct authorized environment before testing. Link and session requests use stable order-based idempotency keys.
 
 ## Webhook route and security limitations
 
@@ -41,9 +44,9 @@ The callback route implemented by the catalog controller is:
 https://store.example/index.php?route=extension/payment/edpay/webhook
 ```
 
-The controller handles `payment.succeeded` events and applies the configured order status (or OpenCart status ID `2` when unset). It reads the raw body and `X-EDPay-Signature` and compares the signature with an HMAC-SHA256 hex digest when a webhook secret is configured.
+The extension stores payment-link ID, order ID, amount, and currency in its own prefixed table. The webhook requires `data.payment_link_id`, `type=payment.succeeded`, `status=succeeded`, and matching amount/currency; a compare-and-set claim rejects duplicate settlements. This requires an API version that emits the payment-link ID. Signature verification requires `Payment-Signature` and the configured secret, with a configurable 300-second default timestamp window.
 
-**Important:** the current code only checks the signature when `payment_edpay_webhook_secret` is non-empty. If it is missing, the controller accepts the callback without signature verification. It also has no event-deduplication logic. Do not expose this callback or use it for live payments until the implementation is changed to require signature verification and safely handle repeated events. Always confirm payment from a verified server-side webhook, not from the customer's browser redirect.
+Always confirm payment from the verified server-side webhook, not from the customer's browser redirect.
 
 ## Documentation
 
