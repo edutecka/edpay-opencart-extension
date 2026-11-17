@@ -1,5 +1,7 @@
 # EDPay for OpenCart — Official Development Preview
 
+**Version:** 1.6.0
+
 This repository is an implementation preview, not a production release. **It is not installable as a complete OpenCart extension in its current state.** The repository contains a catalog payment controller and model, plus an English catalog language file; it does not include the admin configuration screens, catalog view, or an OpenCart installer package. Compatibility with specific OpenCart versions has not been validated.
 
 Do not use this code for live transactions. The implementation also has webhook-verification and retry limitations described below.
