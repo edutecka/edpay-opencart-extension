@@ -38,12 +38,12 @@ class ControllerExtensionPaymentEdpay extends Controller {
             "X-EDPay-Public-Key: {$publicKey}",
             "X-EDPay-Private-Key: {$privateKey}",
         ];
-        $createLink = function ($url, $body, $idempotencyKey) use ($headers) {
+        $request = function ($url, $body, $idempotencyKey) use ($headers) {
             $ch = curl_init($url);
             curl_setopt_array($ch, [
                 CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 25,
                 CURLOPT_HTTPHEADER => array_merge($headers, ["Idempotency-Key: {$idempotencyKey}"]),
-                CURLOPT_POSTFIELDS => json_encode($body),
+                CURLOPT_POSTFIELDS => ($body === [] ? '{}' : json_encode($body)),
             ]);
             $response = curl_exec($ch);
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -51,23 +51,21 @@ class ControllerExtensionPaymentEdpay extends Controller {
             return [$httpCode, json_decode((string) $response, true)];
         };
         $prefix = 'opencart-order-' . $orderId;
-        [$httpCode, $link] = $createLink("{$apiUrl}/v1/payment-links", [
+        [$httpCode, $payment] = $request("{$apiUrl}/v1/payments", [
             'amount_minor' => $amountCentavos,
             'currency' => $order_info['currency_code'] ?: 'MZN',
-        ], "{$prefix}-link-create");
-        $linkId = $link['data']['id'] ?? null;
-        if ($httpCode >= 200 && $httpCode < 300 && is_string($linkId) && $linkId !== '') {
+            'reference' => (string) $orderId,
+            'description' => 'Order ' . $orderId,
+        ], "{$prefix}-payment-create");
+        $paymentId = $payment['data']['id'] ?? null;
+        if ($httpCode >= 200 && $httpCode < 300 && is_string($paymentId) && $paymentId !== '') {
             $this->load->model('extension/payment/edpay');
-            $this->model_extension_payment_edpay->saveOrderLink(
-                (string) $linkId,
-                (int) $orderId,
-                $amountCentavos,
+            $this->model_extension_payment_edpay->saveOrderPayment(
+                (string) $orderId, (int) $orderId, $amountCentavos,
                 (string) ($order_info['currency_code'] ?: 'MZN')
             );
-            [$sessionCode, $session] = $createLink("{$apiUrl}/v1/checkout/sessions", [
-                'payment_link_id' => $linkId,
-            ], "{$prefix}-checkout-session");
-            $token = $session['data']['token'] ?? null;
+            [$sessionCode, $session] = $request("{$apiUrl}/v1/payments/" . rawurlencode($paymentId) . "/public-checkout", [], "{$prefix}-public-checkout");
+            $token = $session['data']['token'] ?? $session['token'] ?? null;
             if ($sessionCode >= 200 && $sessionCode < 300 && is_string($token) && $token !== '') {
                 $checkoutUrl = 'https://pay.edutecka.com/pay?' . http_build_query([
                     'token' => $token, 'pk' => $publicKey,
@@ -117,20 +115,20 @@ class ControllerExtensionPaymentEdpay extends Controller {
         $event = json_decode($payload, true);
         if ($event && ($event['type'] ?? '') === 'payment.succeeded') {
             $data = $event['data'] ?? [];
-            $linkId = (string) ($data['payment_link_id'] ?? '');
+            $reference = (string) ($data['reference'] ?? '');
             $paymentId = (string) ($data['id'] ?? '');
             $this->load->model('extension/payment/edpay');
-            $mapping = $linkId !== '' ? $this->model_extension_payment_edpay->getOrderLink($linkId) : [];
+            $mapping = $reference !== '' ? $this->model_extension_payment_edpay->getOrderReference($reference) : [];
             if (!$mapping || ($data['status'] ?? '') !== 'succeeded' || $paymentId === ''
                 || !isset($data['amount_minor']) || (int) $data['amount_minor'] !== (int) $mapping['amount_minor']
                 || strtoupper((string) ($data['currency'] ?? '')) !== strtoupper((string) $mapping['currency'])) {
                 $this->response->addHeader('HTTP/1.1 409 Conflict');
-                $this->response->setOutput(json_encode(['error' => 'Payment link, status, amount, or currency mismatch']));
+                $this->response->setOutput(json_encode(['error' => 'Payment reference, status, amount, or currency mismatch']));
                 return;
             }
             if (!empty($mapping['payment_id'])) {
                 $this->response->addHeader('HTTP/1.1 409 Conflict');
-                $this->response->setOutput(json_encode(['error' => 'Payment link already processed']));
+                $this->response->setOutput(json_encode(['error' => 'Payment already processed']));
                 return;
             }
             $orderId = (int) $mapping['order_id'];
@@ -143,9 +141,9 @@ class ControllerExtensionPaymentEdpay extends Controller {
                 $this->response->setOutput(json_encode(['error' => 'Mapped order amount or currency mismatch']));
                 return;
             }
-            if (!$this->model_extension_payment_edpay->claimOrderLink($linkId, $paymentId)) {
+            if (!$this->model_extension_payment_edpay->claimOrderPayment($reference, $paymentId)) {
                 $this->response->addHeader('HTTP/1.1 409 Conflict');
-                $this->response->setOutput(json_encode(['error' => 'Payment link already processed']));
+                $this->response->setOutput(json_encode(['error' => 'Payment already processed']));
                 return;
             }
             if ($orderId > 0) {

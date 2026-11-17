@@ -8,7 +8,7 @@ Do not use this code for live transactions. The implementation also has webhook-
 
 The source uses PHP cURL, JSON, and HMAC functions. Use it only in an isolated OpenCart development store with an EDPay account and an explicitly approved sandbox API endpoint.
 
-The included model exposes an `edpay` payment method. Its controller is intended to create a hosted payment link for the current OpenCart order and redirect the customer to the URL returned by EDPay. The hosted checkout uses the payment methods enabled for the merchant; the extension does not select or require a specific gateway.
+The included model exposes an `edpay` payment method. Its controller creates a payment parent, attaches hosted checkout to that same payment, and redirects the customer using the returned opaque token. The hosted checkout uses the payment methods enabled for the merchant; the extension does not select or require a specific gateway.
 
 ## Source checkout
 
@@ -30,7 +30,7 @@ The catalog controller expects an existing OpenCart order and reads these settin
 - `payment_edpay_order_status_id`
 - `payment_edpay_title`, `payment_edpay_sort_order`, and optionally `payment_edpay_geo_zone_id`
 
-There is no included admin screen to enter or manage these settings. The controller uses `POST /v1/payment-links` (`amount_minor`, `currency`) followed by `POST /v1/checkout/sessions` (`payment_link_id`), with stable order-based `Idempotency-Key` values. It builds the hosted URL from the returned session token using the documented frontend URL `https://pay.edutecka.com/pay?token=...&pk=...`.
+There is no included admin screen to enter or manage these settings. The controller creates one parent payment with `POST /v1/payments`, then starts hosted checkout for it with `POST /v1/payments/{id}/public-checkout`, using stable order-based `Idempotency-Key` values. It builds the hosted URL from the returned opaque token using the documented frontend URL `https://pay.edutecka.com/pay?token=...&pk=...`.
 
 Partner API requests require both keys together: pair `pk_test_...` with `sk_test_...`, or `pk_live_...` with `sk_live_...`. The controller rejects missing, malformed, or cross-environment pairs before sending a request.
 
@@ -44,7 +44,7 @@ The callback route implemented by the catalog controller is:
 https://store.example/index.php?route=extension/payment/edpay/webhook
 ```
 
-The extension stores payment-link ID, order ID, amount, and currency in its own prefixed table. The webhook requires `data.payment_link_id`, `type=payment.succeeded`, `status=succeeded`, and matching amount/currency; a compare-and-set claim rejects duplicate settlements. This requires an API version that emits the payment-link ID. Signature verification requires `Payment-Signature` and the configured secret, with a configurable 300-second default timestamp window.
+The extension stores payment reference, order ID, amount, and currency in its own prefixed table. The webhook requires the matching reference, `type=payment.succeeded`, `status=succeeded`, and matching amount/currency; a compare-and-set claim rejects duplicate settlements. Signature verification requires `Payment-Signature` and the configured secret, with a configurable 300-second default timestamp window.
 
 Always confirm payment from the verified server-side webhook, not from the customer's browser redirect.
 

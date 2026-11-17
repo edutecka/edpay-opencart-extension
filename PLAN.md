@@ -7,7 +7,7 @@
 
 ### Phase 2: Configuration, Checkout, and Callback (In Progress)
 - [ ] Add the missing admin configuration screens and catalog view.
-- [ ] Complete hosted payment-link integration through `/v1/core/payment-links`.
+- [ ] Complete hosted payment integration by creating `/v1/payments` then attaching hosted checkout using `/v1/payments/{id}/public-checkout`.
 - [ ] Complete the IPN/webhook callback at `index.php?route=extension/payment/edpay/webhook`.
 
 ### Phase 3: OCMOD Packaging
