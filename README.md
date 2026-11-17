@@ -8,7 +8,7 @@ Do not use this code for live transactions. The implementation also has webhook-
 
 ## Requirements and intended integration
 
-The source uses PHP cURL, JSON, and HMAC functions. Use it only in an isolated OpenCart development store with an EDPay account and an explicitly approved sandbox API endpoint.
+The source uses PHP cURL, JSON, and HMAC functions. Use it only in an isolated OpenCart development store with an EDPay account and the canonical EDPay API host https://api-pay.edutecka.com and matching test keys.
 
 The included model exposes an `edpay` payment method. Its controller creates a payment parent, attaches hosted checkout to that same payment, and redirects the customer using the returned opaque token. The hosted checkout uses the payment methods enabled for the merchant; the extension does not select or require a specific gateway.
 
